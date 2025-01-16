@@ -1,47 +1,47 @@
+from fpdf import FPDF
 import sqlite3
 import pandas as pd
-import matplotlib.pyplot as plt
 
-DB_FILE = "./outputs/dicom_metadata.db"  # SQLite database file
+DB_FILE = "./outputs/dicom_metadata.db"
+OUTPUT_PDF = "./outputs/Summary_Report.pdf"
 
 def generate_summary():
-    """
-    Generate a summary of the dataset, including statistics and visualizations.
-    """
-    # Connect to the database
+    """Generate a summary report and save as PDF."""
     conn = sqlite3.connect(DB_FILE)
-
-    # Load data into Pandas DataFrames
-    studies_df = pd.read_sql_query("SELECT * FROM studies;", conn)
     series_df = pd.read_sql_query("SELECT * FROM series;", conn)
-
-    # Close the connection
     conn.close()
 
-    # Generate Summary Statistics
-    total_studies = len(studies_df)
+    total_studies = len(series_df["study_instance_uid"].unique())
     total_slices = series_df["number_of_slices"].sum()
     avg_slices_per_study = total_slices / total_studies if total_studies > 0 else 0
     slice_thickness_distribution = series_df["slice_thickness"].value_counts()
 
-    # Print Summary
-    print("Summary Statistics:")
-    print(f"Total number of studies: {total_studies}")
-    print(f"Total slices across all scans: {total_slices}")
-    print(f"Average number of slices per study: {avg_slices_per_study:.2f}")
-    print("\nSlice Thickness Distribution:")
-    print(slice_thickness_distribution)
+    # Create PDF
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
 
-    # Visualization: Slice Thickness Distribution
-    plt.figure(figsize=(8, 6))
-    slice_thickness_distribution.plot(kind="bar")
-    plt.title("Slice Thickness Distribution")
-    plt.xlabel("Slice Thickness")
-    plt.ylabel("Frequency")
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    plt.savefig("./outputs/slice_thickness_distribution.png")
-    plt.show()
+    # Title
+    pdf.set_font("Arial", style="B", size=16)
+    pdf.cell(0, 10, "LIDC Pipeline - Summary Report", ln=True, align="C")
+    pdf.ln(10)
+
+    # Summary statistics
+    pdf.set_font("Arial", size=12)
+    pdf.cell(0, 10, f"Total number of studies: {total_studies}", ln=True)
+    pdf.cell(0, 10, f"Total slices across all scans: {total_slices}", ln=True)
+    pdf.cell(0, 10, f"Average number of slices per study: {avg_slices_per_study:.2f}", ln=True)
+    pdf.ln(10)
+
+    # Slice Thickness Distribution
+    pdf.cell(0, 10, "Slice Thickness Distribution:", ln=True)
+    for thickness, count in slice_thickness_distribution.items():
+        pdf.cell(0, 10, f"  {thickness} mm: {count} slices", ln=True)
+
+    # Save PDF
+    pdf.output(OUTPUT_PDF)
+    print(f"Summary report saved to {OUTPUT_PDF}")
 
 if __name__ == "__main__":
     generate_summary()
